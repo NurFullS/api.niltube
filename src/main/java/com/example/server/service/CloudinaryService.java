@@ -15,15 +15,26 @@ public class CloudinaryService {
 
     public CloudinaryService() {
         this.cloudinary = new Cloudinary(ObjectUtils.asMap(
-            "cloud_name", "dop4mtq1t",
-            "api_key", "293689374536852",
-            "api_secret", "dhAhHNVpXSpMicpMIFLd8a4F3FM"
-        ));
+                "cloud_name", "dop4mtq1t",
+                "api_key", "293689374536852",
+                "api_secret", "dhAhHNVpXSpMicpMIFLd8a4F3FM"));
     }
 
     public String uploadFile(MultipartFile file) throws IOException {
         var uploadResult = cloudinary.uploader().upload(file.getBytes(),
-                ObjectUtils.asMap("folder", "avatars"));
+                ObjectUtils.asMap(
+                        "folder", "videos",
+                        "resource_type", "video" // <-- важно для видео
+                ));
         return uploadResult.get("secure_url").toString();
     }
+
+    public String uploadImage(MultipartFile file) throws IOException {
+        var uploadResult = cloudinary.uploader().upload(file.getBytes(),
+                ObjectUtils.asMap(
+                        "folder", "avatars",
+                        "resource_type", "image"));
+        return uploadResult.get("secure_url").toString();
+    }
+
 }

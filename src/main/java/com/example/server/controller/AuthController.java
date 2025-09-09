@@ -158,8 +158,7 @@ public class AuthController {
                     auth.getUsername(),
                     auth.getEmail(),
                     auth.getAvatar(),
-                    auth.getRole().name()
-            );
+                    auth.getRole().name());
 
             return ResponseEntity.ok(responseDto);
         } catch (Exception e) {
@@ -170,10 +169,11 @@ public class AuthController {
     @PostMapping("/upload-avatar")
     public ResponseEntity<String> uploadAvatar(@RequestParam("file") MultipartFile file) {
         try {
-            String imageUrl = cloudinaryService.uploadFile(file);
+            String imageUrl = cloudinaryService.uploadImage(file); // <-- используем uploadImage
             return ResponseEntity.ok(imageUrl);
         } catch (IOException e) {
             return ResponseEntity.status(500).body("Ошибка загрузки: " + e.getMessage());
         }
     }
+
 }
