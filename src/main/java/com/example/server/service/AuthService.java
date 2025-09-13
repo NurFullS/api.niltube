@@ -22,7 +22,7 @@ public class AuthService {
     private HttpServletRequest request;
 
     @Autowired
-    private JwtConfig jwtConfig; // Класс с jwtSecret
+    private JwtConfig jwtConfig;
 
     public Auth getCurrentUser() {
         String token = null;

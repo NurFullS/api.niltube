@@ -1,6 +1,5 @@
 package com.example.server.controller;
 
-// import java.io.IOException;
 import java.util.Date;
 import java.util.List;
 
@@ -13,7 +12,6 @@ import com.example.server.dto.VideoUploadRequestDto;
 import com.example.server.dto.VideoResponseDto;
 import com.example.server.model.Auth;
 import com.example.server.model.Video;
-// import com.example.server.repository.AuthRepository;
 import com.example.server.repository.VideoRepository;
 import com.example.server.service.AuthService;
 import com.example.server.service.CloudinaryService;
