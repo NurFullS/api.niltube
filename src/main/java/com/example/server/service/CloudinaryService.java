@@ -24,7 +24,7 @@ public class CloudinaryService {
         var uploadResult = cloudinary.uploader().upload(file.getBytes(),
                 ObjectUtils.asMap(
                         "folder", "videos",
-                        "resource_type", "video" // <-- важно для видео
+                        "resource_type", "video"
                 ));
         return uploadResult.get("secure_url").toString();
     }

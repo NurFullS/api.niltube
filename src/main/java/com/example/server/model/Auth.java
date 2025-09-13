@@ -26,8 +26,5 @@ public class Auth {
 
     private String avatar;
 
-    @Enumerated(EnumType.STRING)
-    private Role role = Role.USER;
-
     private LocalDateTime createdAt = LocalDateTime.now();
 }

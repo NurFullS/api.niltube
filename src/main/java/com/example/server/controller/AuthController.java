@@ -1,6 +1,7 @@
 package com.example.server.controller;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
@@ -20,7 +21,6 @@ import com.example.server.dto.AuthDto;
 import com.example.server.dto.AuthRequestDto;
 import com.example.server.dto.AuthResponseDto;
 import com.example.server.model.Auth;
-import com.example.server.model.Role;
 import com.example.server.repository.AuthRepository;
 import com.example.server.service.CloudinaryService;
 
@@ -60,7 +60,6 @@ public class AuthController {
         auth.setUsername(requestDto.getUsername());
         auth.setEmail(requestDto.getEmail());
         auth.setPassword(hashedPassword);
-        auth.setRole(auth.getRole() == null ? Role.USER : auth.getRole());
 
         auth.setAvatar(requestDto.getAvatar());
         System.out.println("Avatar URL: " + requestDto.getAvatar());
@@ -71,8 +70,7 @@ public class AuthController {
                 savedUser.getId(),
                 savedUser.getUsername(),
                 savedUser.getEmail(),
-                savedUser.getAvatar(),
-                savedUser.getRole().name());
+                savedUser.getAvatar());
 
         return ResponseEntity.ok(response);
     }
@@ -103,8 +101,7 @@ public class AuthController {
                 auth.getId(),
                 auth.getUsername(),
                 auth.getEmail(),
-                auth.getAvatar(),
-                auth.getRole().name());
+                auth.getAvatar());
 
         return ResponseEntity.ok(responseDto);
     }
@@ -118,8 +115,7 @@ public class AuthController {
                         user.getId(),
                         user.getUsername(),
                         user.getEmail(),
-                        user.getAvatar(),
-                        user.getRole().name()))
+                        user.getAvatar()))
                 .toList();
 
         return ResponseEntity.ok(dtoList);
@@ -157,8 +153,7 @@ public class AuthController {
                     auth.getId(),
                     auth.getUsername(),
                     auth.getEmail(),
-                    auth.getAvatar(),
-                    auth.getRole().name());
+                    auth.getAvatar());
 
             return ResponseEntity.ok(responseDto);
         } catch (Exception e) {
@@ -167,9 +162,29 @@ public class AuthController {
     }
 
     @PostMapping("/upload-avatar")
-    public ResponseEntity<String> uploadAvatar(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<String> uploadAvatar(HttpServletRequest request, @RequestParam("file") MultipartFile file) {
         try {
-            String imageUrl = cloudinaryService.uploadImage(file); // <-- используем uploadImage
+            String token = Arrays.stream(request.getCookies())
+                    .filter(c -> "token".equals(c.getName()))
+                    .findFirst()
+                    .map(Cookie::getValue)
+                    .orElseThrow(() -> new RuntimeException("Не авторизован"));
+
+            String email = Jwts.parserBuilder()
+                    .setSigningKey(Keys.hmacShaKeyFor(jwtSecret.getBytes()))
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody()
+                    .getSubject();
+
+            Auth auth = authRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
+
+            String imageUrl = cloudinaryService.uploadImage(file);
+
+            auth.setAvatar(imageUrl);
+            authRepository.save(auth);
+
             return ResponseEntity.ok(imageUrl);
         } catch (IOException e) {
             return ResponseEntity.status(500).body("Ошибка загрузки: " + e.getMessage());

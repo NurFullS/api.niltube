@@ -1,6 +1,10 @@
 package com.example.server.model;
 
 import java.util.Date;
+
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -15,17 +19,23 @@ public class Video {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String videoUrl; // URL видео на Cloudinary
+    @Column(nullable = false)
+    private String videoUrl;
 
-    private String videoName; // название видео
+    @Column(nullable = false)
+    private String videoName;
 
     @Column(length = 1000)
-    private String videoDescription; // описание видео
+    private String videoDescription;
+
+    @Column(nullable = true)
+    private String videoPreview;
 
     @ManyToOne
     @JoinColumn(name = "owner_id", nullable = true)
-    private Auth owner; // владелец видео (опционально для теста)
+    private Auth owner;
 
-    @Column(nullable = false)
-    private Date createdAt = new Date(); // дата загрузки
+    @JsonProperty("created_at")
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSXXX")
+    private Date createdAt;
 }

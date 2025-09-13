@@ -2,6 +2,7 @@ package com.example.server.controller;
 
 // import java.io.IOException;
 import java.util.Date;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -25,9 +26,6 @@ public class VideoController {
     @Autowired
     private VideoRepository videoRepository;
 
-    // @Autowired
-    // private AuthRepository authRepository;
-
     @Autowired
     private CloudinaryService cloudinaryService;
 
@@ -39,14 +37,22 @@ public class VideoController {
         try {
             MultipartFile videoFile = request.getFile();
             if (videoFile == null || videoFile.isEmpty()) {
-                throw new RuntimeException("Файл не был загружен");
+                throw new RuntimeException("Видео не было загружено");
+            }
+
+            MultipartFile previewFile = request.getFilePreview();
+            if (previewFile == null || previewFile.isEmpty()) {
+                throw new RuntimeException("Превью не было загружено");
             }
 
             String videoUrl = cloudinaryService.uploadFile(videoFile);
+            String previewUrl = cloudinaryService.uploadImage(previewFile);
+
             Auth currentUser = authService.getCurrentUser();
 
             Video video = new Video();
             video.setVideoUrl(videoUrl);
+            video.setVideoPreview(previewUrl);
             video.setVideoName(request.getVideoName());
             video.setVideoDescription(request.getVideoDescription());
             video.setOwner(currentUser);
@@ -54,9 +60,15 @@ public class VideoController {
 
             videoRepository.save(video);
 
-            return ResponseEntity.ok(new VideoResponseDto(video));
+            VideoResponseDto dto = new VideoResponseDto(video);
+            if (currentUser != null) {
+                dto.setOwnerUsername(currentUser.getUsername());
+                dto.setOwnerEmail(currentUser.getEmail());
+            }
+
+            return ResponseEntity.ok(dto);
         } catch (Exception e) {
-            e.printStackTrace(); // ← здесь появится точная причина ошибки
+            e.printStackTrace();
             return ResponseEntity.status(500).body(null);
         }
     }
@@ -65,12 +77,27 @@ public class VideoController {
     public ResponseEntity<VideoResponseDto> getVideo(@PathVariable Long id) {
         Video video = videoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Видео не найдено"));
-
         VideoResponseDto dto = new VideoResponseDto(video);
-        dto.setOwnerUsername(video.getOwner().getUsername());
-        dto.setOwnerEmail(video.getOwner().getEmail());
-
+        if (video.getOwner() != null) {
+            dto.setOwnerUsername(video.getOwner().getUsername());
+            dto.setOwnerEmail(video.getOwner().getEmail());
+        }
         return ResponseEntity.ok(dto);
     }
 
+    @GetMapping("/videos")
+    public ResponseEntity<List<VideoResponseDto>> getAllVideo() {
+        List<Video> videos = videoRepository.findAll();
+
+        List<VideoResponseDto> dtoList = videos.stream().map(video -> {
+            VideoResponseDto dto = new VideoResponseDto(video);
+            if (video.getOwner() != null) {
+                dto.setOwnerUsername(video.getOwner().getUsername());
+                dto.setOwnerEmail(video.getOwner().getEmail());
+            }
+            return dto;
+        }).toList();
+
+        return ResponseEntity.ok(dtoList);
+    }
 }

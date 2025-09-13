@@ -2,11 +2,15 @@ package com.example.server.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.example.server.config.JwtConfig;
 import com.example.server.model.Auth;
 import com.example.server.repository.AuthRepository;
+
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.Cookie;
 
 @Service
 public class AuthService {
@@ -14,15 +18,41 @@ public class AuthService {
     @Autowired
     private AuthRepository authRepository;
 
+    @Autowired
+    private HttpServletRequest request;
+
+    @Autowired
+    private JwtConfig jwtConfig; // Класс с jwtSecret
+
     public Auth getCurrentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
+        String token = null;
+
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if ("token".equals(cookie.getName())) {
+                    token = cookie.getValue();
+                    break;
+                }
+            }
+        }
+
+        if (token == null) {
             throw new RuntimeException("Пользователь не авторизован");
         }
 
-        String emailFromToken = authentication.getName(); // обычно это "sub" из JWT
-        return authRepository.findByEmail(emailFromToken)
-                .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
-    }
+        try {
+            String emailFromToken = Jwts.parserBuilder()
+                    .setSigningKey(Keys.hmacShaKeyFor(jwtConfig.getSecret().getBytes()))
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody()
+                    .getSubject();
 
+            return authRepository.findByEmail(emailFromToken)
+                    .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
+
+        } catch (Exception e) {
+            throw new RuntimeException("Неверный токен");
+        }
+    }
 }
