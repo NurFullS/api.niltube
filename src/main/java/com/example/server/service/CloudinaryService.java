@@ -24,8 +24,7 @@ public class CloudinaryService {
         var uploadResult = cloudinary.uploader().upload(file.getBytes(),
                 ObjectUtils.asMap(
                         "folder", "videos",
-                        "resource_type", "video"
-                ));
+                        "resource_type", "video"));
         return uploadResult.get("secure_url").toString();
     }
 
@@ -37,4 +36,31 @@ public class CloudinaryService {
         return uploadResult.get("secure_url").toString();
     }
 
+    public void deleteFile(String fileUrl) {
+        try {
+            String publicId = extractPublicId(fileUrl);
+            if (publicId != null) {
+                cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Ошибка при удалении файла из Cloudinary: " + e.getMessage());
+        }
+    }
+
+    private String extractPublicId(String fileUrl) {
+        if (fileUrl == null || fileUrl.isEmpty())
+            return null;
+
+        try {
+            String[] parts = fileUrl.split("/");
+            String filename = parts[parts.length - 1];
+            String folder = parts[parts.length - 2];
+            String publicId = folder + "/" + filename.substring(0, filename.lastIndexOf('.'));
+            return publicId;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
 }

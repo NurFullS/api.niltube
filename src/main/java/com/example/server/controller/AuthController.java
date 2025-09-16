@@ -10,8 +10,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+// import org.springframework.web.ErrorResponse;x
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -23,6 +26,7 @@ import com.example.server.dto.AuthResponseDto;
 import com.example.server.model.Auth;
 import com.example.server.repository.AuthRepository;
 import com.example.server.service.CloudinaryService;
+import com.example.server.service.LoginAttemptService;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -75,14 +79,31 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+    @Autowired
+    private LoginAttemptService loginAttemptService;
+
     @PostMapping("/login")
-    public ResponseEntity<AuthResponseDto> login(@RequestBody AuthRequestDto requestDto, HttpServletResponse response) {
-        Auth auth = authRepository.findByEmail(requestDto.getEmail())
+    public ResponseEntity<?> login(@RequestBody AuthRequestDto requestDto,
+            HttpServletResponse response) {
+        String email = requestDto.getEmail();
+
+        if (loginAttemptService.isBlocked(email)) {
+            return ResponseEntity
+                    .status(429)
+                    .body(new com.example.server.dto.ErrorResponse("Слишком много попыток. Попробуйте через минуту."));
+        }
+
+        Auth auth = authRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
 
         if (!passwordEncoder.matches(requestDto.getPassword(), auth.getPassword())) {
-            throw new RuntimeException("Неверный пароль");
+            loginAttemptService.loginFailed(email);
+            return ResponseEntity
+                    .status(401)
+                    .body(new com.example.server.dto.ErrorResponse("Неверный пароль"));
         }
+
+        loginAttemptService.loginSucceeded(email);
 
         String token = Jwts.builder()
                 .setSubject(auth.getEmail())
@@ -93,17 +114,80 @@ public class AuthController {
 
         Cookie cookie = new Cookie("token", token);
         cookie.setHttpOnly(true);
-        cookie.setMaxAge(7 * 24 * 60 * 60);
+        cookie.setMaxAge((int) (jwtExpirationMs / 1000));
         cookie.setPath("/");
         response.addCookie(cookie);
 
-        AuthResponseDto responseDto = new AuthResponseDto(
+        return ResponseEntity.ok(new AuthResponseDto(
+                auth.getId(),
+                auth.getUsername(),
+                auth.getEmail(),
+                auth.getAvatar()));
+    }
+
+    @GetMapping("/users/{username}")
+    public ResponseEntity<AuthDto> getUserByUsername(@PathVariable String username) {
+        Auth auth = authRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
+
+        AuthDto responseDto = new AuthDto(
                 auth.getId(),
                 auth.getUsername(),
                 auth.getEmail(),
                 auth.getAvatar());
 
         return ResponseEntity.ok(responseDto);
+    }
+
+    @DeleteMapping("/users/{id}")
+    public ResponseEntity<?> deleteUser(@PathVariable Long id) {
+        if (!authRepository.existsById(id)) {
+            return ResponseEntity.status(404).body("Пользователь не найден");
+        }
+
+        authRepository.deleteById(id);
+        return ResponseEntity.ok("Пользователь успешно удалён!");
+    }
+
+    @GetMapping("/logout")
+    public ResponseEntity<?> logout(HttpServletResponse response) {
+        Cookie cookie = new Cookie("token", null);
+        cookie.setHttpOnly(true);
+        cookie.setPath("/");
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
+
+        return ResponseEntity.ok("Вы успешно вышли из аккаунта");
+    }
+
+    @DeleteMapping("/users/me")
+    public ResponseEntity<?> deleteMyAccountFromDataBase(HttpServletRequest request) {
+        String token = Arrays.stream(request.getCookies())
+                .filter(c -> "token".equals(c.getName()))
+                .findFirst()
+                .map(Cookie::getValue)
+                .orElseThrow(() -> new RuntimeException("Не авторизован"));
+
+        String email = Jwts.parserBuilder()
+                .setSigningKey(Keys.hmacShaKeyFor(jwtSecret.getBytes()))
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .getSubject();
+
+        Auth auth = authRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
+
+        try {
+            if (auth.getAvatar() != null && !auth.getAvatar().isEmpty()) {
+                cloudinaryService.deleteFile(auth.getAvatar());
+            }
+
+            authRepository.deleteById(auth.getId());
+            return ResponseEntity.ok("Ваш аккаунт успешно удалён!");
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Ошибка при удалении аккаунта: " + e.getMessage());
+        }
     }
 
     @GetMapping("/users")
@@ -190,5 +274,4 @@ public class AuthController {
             return ResponseEntity.status(500).body("Ошибка загрузки: " + e.getMessage());
         }
     }
-
 }
